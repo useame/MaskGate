@@ -170,7 +170,7 @@ class MaskGate(nn.Module):
         # output should be patch_num * patch_num tensor mask
         self.vis = False
         self.output_channel = output_channel
-        self.input_channel = 2 * input_channel
+        self.input_channel =  input_channel
         self.patch_num = patch_num
         self.patch_size = patch_size
         self.convmixer = nn.Sequential(
@@ -204,18 +204,18 @@ class MaskGate(nn.Module):
                 p.requires_grad = True
 
 
-    def forward(self, now_input, previous_input):
+    def forward(self, now_input):
         mask_mode = m_cfg.mask_mode
-        current_input = torch.cat((now_input, previous_input), 1)
-        mask = self.convmixer(current_input)
+        # current_input = torch.cat((now_input, previous_input), 1)
+        mask = self.convmixer(now_input)
         mask = self.sigmoid(mask, self.running_mode)
-
-        h, w = now_input.shape[2:]
+        index = torch.nonzero(mask)
+        h, w = now_input.shape[1:]
         b = now_input.shape[0]
         mask_h = h // self.patch_size
         mask_w = w // self.patch_size
 
-        mask = torch.reshape(mask, (mask.shape[0], 1, mask_h, mask_w))
+        # mask = torch.reshape(mask, (mask.shape[0], 1, mask_h, mask_w))
 
         # mask = torch.zeros_like(mask)
         # mask = torch.ones_like(mask)
@@ -237,19 +237,23 @@ class MaskGate(nn.Module):
 
         if self.vis:
             m_cfg.mask = mask.clone().detach()
-        mask = mask.expand(now_input.shape[0], now_input.shape[1], mask_h, mask_w)
+        # mask = mask.expand(now_input.shape[0], mask_h, mask_w)
 
-        m = torch.nn.Upsample(scale_factor=self.patch_size, mode='nearest')
-        mask = m(mask)
+        # m = torch.nn.Upsample(scale_factor=self.patch_size, mode='nearest')
+        # mask = m(mask)
         # if self.vis:
         #     show_mask(mask.detach())
+        # 1 jiu 0 xin
+        # need 0keep 1remove
+        x_masked = torch.mul(now_input, 1 - mask)
 
-        if mask_mode == MaskMode.Positive:
-            now_input = torch.mul(previous_input, mask) + torch.mul(now_input, 1 - mask)
-        if mask_mode == MaskMode.Negative:
-            now_input = torch.mul(now_input, mask) + torch.mul(previous_input, 1 - mask)
+        # ids_restore =
+        # if mask_mode == MaskMode.Positive:
+        #     now_input = torch.mul(previous_input, mask) + torch.mul(now_input, 1 - mask)
+        # if mask_mode == MaskMode.Negative:
+        #     now_input = torch.mul(now_input, mask) + torch.mul(previous_input, 1 - mask)
 
-        return now_input
+        return x_masked,mask
 
     def init_weights(self):
         """
